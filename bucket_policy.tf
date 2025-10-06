@@ -1,7 +1,8 @@
-# Bucket policy to only allow admin or access point access
+# Bucket policy: Admins access bucket directly, everyone else must use access points
+# Denies direct bucket access unless you're an admin or using an access point from this account
 data "aws_iam_policy_document" "secure_bucket_policy" {
   statement {
-    sid     = "RestrictedDataAccess"
+    sid     = "DenyDirectAccessExceptAdminsAndAccessPoints"
     effect  = "Deny"
     actions = ["s3:*"]
     resources = [
@@ -12,14 +13,13 @@ data "aws_iam_policy_document" "secure_bucket_policy" {
       type        = "*"
       identifiers = ["*"]
     }
+    # Deny if NOT admin
     condition {
       test     = "ArnNotLike"
       variable = "aws:PrincipalArn"
-      values = [
-        "arn:aws:iam::407461997746:role/github-actions-Role-56IHHM969DKJ",
-        "arn:aws:iam::407461997746:role/aws-reserved/sso.amazonaws.com/ap-southeast-1/AWSReservedSSO_AdministratorAccess_*"
-      ]
+      values   = var.admin_role_arns
     }
+    # AND not from access point
     condition {
       test     = "StringNotEquals"
       variable = "s3:DataAccessPointAccount"

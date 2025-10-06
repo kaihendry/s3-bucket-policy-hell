@@ -12,7 +12,14 @@ data "aws_iam_policy_document" "a_role_access_point_readonly" {
       "s3:ListBucket",
       "s3:GetObject"
     ]
-    resources = ["*"]
+    # Grant permissions on both bucket and access point ARNs
+    # Bucket policy forces access via access point, access point policy restricts to prefix
+    resources = [
+      aws_s3_bucket.secure_bucket.arn,
+      "${aws_s3_bucket.secure_bucket.arn}/*",
+      "arn:aws:s3:${var.aws_region}:${data.aws_caller_identity.current.account_id}:accesspoint/${var.bucket_name}-ap",
+      "arn:aws:s3:${var.aws_region}:${data.aws_caller_identity.current.account_id}:accesspoint/${var.bucket_name}-ap/object/*"
+    ]
   }
 }
 

@@ -1,35 +1,51 @@
-# Goal: Not touching bucket policy of shared bucket
+# S3 Access Point Policy Management
 
-One of the most significant advantages of using S3 Access Points is the ability to grant specific access to parts of a bucket **without altering the main bucket policy**. This is especially beneficial when:
+Demonstrates how to use S3 Access Points to grant granular, prefix-based access to S3 buckets without modifying the main bucket policy.
 
-*   **Sharing a bucket:** Modifying a central bucket policy can be risky and complex, potentially impacting numerous users or applications. Access Points provide isolated access controls.
-*   **Delegating access management:** Different teams can manage their own Access Point policies without needing permissions to change the bucket policy.
-*   **Bucket policy size limits:** Bucket policies have a 20KB size limit. Access Points help scale access control by distributing policy logic.
-*   **Distinct network controls:** You can restrict Access Points to specific VPCs, enabling private network paths to data without changing the bucket policy.
+## Security Model: Multi-Layer Access Control
 
-By using Access Points, the bucket policy can remain simpler, focusing on broad rules, while granular permissions are handled by individual Access Point policies. This simplifies management and reduces the risk associated with policy changes.
+This implementation uses a **defense-in-depth approach** with three policy layers:
 
-https://aws.amazon.com/blogs/security/how-to-restrict-amazon-s3-bucket-access-to-a-specific-iam-role/
+### 1. IAM Policy (Identity-Based)
+Grants S3 capabilities to the role:
+```
+✓ Allows s3:ListBucket and s3:GetObject on bucket and access point ARNs
+```
 
-## Access Point Policy Approach
+### 2. Bucket Policy (Resource-Based)
+Forces access path separation:
+```
+✓ Admins → Direct bucket access (s3://bucket-name/)
+✗ Non-admins → DENIED direct access (must use access points)
+✓ Everyone → Allowed via access points
+```
 
-This implementation uses a **deny-based policy** with `StringNotEquals` for precise role matching:
+### 3. Access Point Policy (Resource-Based)
+Enforces granular restrictions:
+```
+✓ Only specific role allowed (StringNotEquals on aws:PrincipalArn)
+✗ Write operations denied (read-only)
+✓ ListBucket only for s3accesslogs/ prefix
+✓ GetObject only for s3accesslogs/* objects
+```
 
-### Policy Structure (5 statements)
+### How It Works Together
 
-1. **Deny all except allowed role** - Uses `StringNotEquals` to block all principals except the specific role ARN
-2. **Deny write operations** - Blocks PutObject, DeleteObject, etc. for the allowed role (read-only access)
-3. **Deny ListBucket outside prefix** - Uses `StringNotLike` with `s3:prefix` condition to restrict listing to `s3accesslogs/`
-4. **Deny GetObject outside prefix** - Uses `NotResource` to block object access outside `s3accesslogs/`
+**Admin access (SSO roles)**:
+- Direct bucket access → Bucket policy allows → Full access
 
-### StringNotEquals vs StringNotLike
+**Application access (foo-via-access-point role)**:
+- Direct bucket access → Bucket policy DENIES → Access denied
+- Via access point → Bucket policy allows → Access point policy evaluates → Restricted to s3accesslogs/ prefix, read-only
 
-- **StringNotEquals**: Exact match, no wildcards. Used when you have specific role ARNs.
-- **StringNotLike**: Pattern matching with `*` wildcards. Used when matching multiple roles via patterns.
+This ensures **non-admin access is channeled through access points** where fine-grained controls are applied.
 
-For assumed roles, `aws:PrincipalArn` evaluates to the role ARN (e.g., `arn:aws:iam::123456789:role/my-role`), not the session ARN, so both work correctly.
+## Benefits
 
-This implementation uses `StringNotEquals` for the first statement (blocking non-allowed roles) since we're specifying exact role ARNs without wildcards. This provides precise, unambiguous access control.
+- **Isolation**: Changes to access point policies don't affect bucket policy or other access points
+- **Scalability**: Bypass bucket policy 20KB size limit by distributing logic across access points
+- **Delegation**: Teams manage their own access point policies without bucket policy permissions
+- **Auditability**: Clear separation between admin (direct) and application (access point) access patterns
 
 ## AWS CLI Usage Examples
 
@@ -109,46 +125,34 @@ aws s3 ls s3://$AP_ALIAS/s3accesslogs/
 # Success!
 ```
 
-# Policy Decision Tree
+## Bucket Policy Logic (Access Path Enforcement)
 
-The following diagram shows how the bucket policy evaluates requests with and without Access Points:
+The bucket policy uses a single **Deny statement with AND conditions** to enforce access path separation:
 
-```mermaid
-graph TD
-    A[Request to S3 Bucket] --> B{Has Access Point?}
-    
-    %% Without Access Point Branch
-    B -->|No| C{Is Admin Role?}
-    C -->|Yes| D[ArnNotLike = false]
-    C -->|No| E[ArnNotLike = true]
-    D --> F[Access ALLOWED]
-    E --> G[StringNotEquals = false]
-    G --> H[Access DENIED]
-    
-    %% With Access Point Branch
-    B -->|Yes| I{Is Admin Role?}
-    I -->|Yes| J[ArnNotLike = false]
-    I -->|No| K[ArnNotLike = true]
-    J --> L[Access ALLOWED]
-    K --> M{Account ID matches?}
-    M -->|Yes| N[StringNotEquals = false]
-    M -->|No| O[StringNotEquals = true]
-    N --> P[Access ALLOWED]
-    O --> Q[Access DENIED]
-
-    style F fill:#90EE90
-    style H fill:#FFB6C1
-    style L fill:#90EE90
-    style P fill:#90EE90
-    style Q fill:#FFB6C1
+```
+Deny IF (NOT admin) AND (NOT via access point from this account)
 ```
 
-The policy creates three paths to access:
-1. Admin roles (always allowed)
-2. Access point with matching account ID (allowed)
-3. Everything else (denied)
+This creates two allowed paths:
 
-This ensures that:
-- Admin roles maintain access regardless of access point usage
-- Non-admin roles must use an access point with matching account ID
-- All other access attempts are denied
+### Path 1: Admin Direct Access
+```
+✓ Admin role → Direct bucket (s3://bucket/) → Allowed
+✓ Admin role → Via access point → Allowed (but unnecessary)
+```
+
+### Path 2: Non-Admin via Access Point
+```
+✗ Non-admin role → Direct bucket → DENIED by bucket policy
+✓ Non-admin role → Via access point → Allowed by bucket policy
+                                    → Access point policy evaluates
+                                    → Restricted to s3accesslogs/ prefix
+```
+
+**Key Insight**: The bucket policy doesn't enforce prefix restrictions—it only ensures non-admins use access points. The **access point policy** provides the actual data access controls (prefix, read-only, specific roles).
+
+## References
+
+- [AWS Blog: Restrict S3 Bucket Access to Specific IAM Roles](https://aws.amazon.com/blogs/security/how-to-restrict-amazon-s3-bucket-access-to-a-specific-iam-role/)
+- [AWS Docs: Access Points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points.html)
+- [AWS Docs: Bucket Policy Examples](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html)

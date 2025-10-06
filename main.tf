@@ -46,22 +46,27 @@ data "aws_iam_policy_document" "assume_role_policy_doc" {
   }
 }
 
-resource "aws_s3_object" "test_file_foo" {
-  bucket  = aws_s3_bucket.secure_bucket.id
-  key     = "${var.prefix}test.txt"
-  content = "This is a test file in s3accesslogs prefix - ${formatdate("YYYY-MM-DD", timestamp())}"
-
-  tags = {
-    Description = "Test file in s3accesslogs prefix for access validation"
+locals {
+  test_objects = {
+    allowed = {
+      prefix      = var.prefix
+      description = "s3accesslogs prefix"
+    }
+    denied = {
+      prefix      = "bar/"
+      description = "bar prefix"
+    }
   }
 }
 
-resource "aws_s3_object" "test_file_bar" {
+resource "aws_s3_object" "test_files" {
+  for_each = local.test_objects
+
   bucket  = aws_s3_bucket.secure_bucket.id
-  key     = "bar/test.txt"
-  content = "This is a test file in bar prefix - ${formatdate("YYYY-MM-DD", timestamp())}"
+  key     = "${each.value.prefix}test.txt"
+  content = "This is a test file in ${each.value.description} - ${formatdate("YYYY-MM-DD", timestamp())}"
 
   tags = {
-    Description = "Test file in bar prefix for access validation"
+    Description = "Test file in ${each.value.description} for access validation"
   }
 }

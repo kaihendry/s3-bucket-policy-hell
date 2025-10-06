@@ -27,3 +27,12 @@ variable "allowed_role_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "admin_role_arns" {
+  description = "List of admin role ARN patterns that can access the bucket directly (bypassing access points)."
+  type        = list(string)
+  default = [
+    "arn:aws:iam::407461997746:role/github-actions-Role-56IHHM969DKJ",
+    "arn:aws:iam::407461997746:role/aws-reserved/sso.amazonaws.com/*/*"
+  ]
+}
