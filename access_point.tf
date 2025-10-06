@@ -24,7 +24,7 @@ resource "aws_iam_role_policy" "a_role_access_point_readonly" {
 
 data "aws_iam_policy_document" "secure_bucket_access_point_policy" {
   statement {
-    sid     = "DenyAllExceptAllowedRoles"
+    sid     = "Deny all s3 except allowed role"
     effect  = "Deny"
     actions = ["s3:*"]
     resources = [
@@ -36,13 +36,13 @@ data "aws_iam_policy_document" "secure_bucket_access_point_policy" {
       identifiers = ["*"]
     }
     condition {
-      test     = "StringNotLike"
+      test     = "StringNotEquals"
       variable = "aws:PrincipalArn"
       values   = local.effective_allowed_role_arns
     }
   }
   statement {
-    sid    = "DenyWriteActionsForAllowedRoles"
+    sid    = "DenyWriteActionsForAllowedRole"
     effect = "Deny"
     actions = [
       "s3:PutObject",
@@ -85,35 +85,6 @@ data "aws_iam_policy_document" "secure_bucket_access_point_policy" {
     effect  = "Deny"
     actions = ["s3:GetObject"]
     not_resources = [
-      "arn:aws:s3:${var.aws_region}:${data.aws_caller_identity.current.account_id}:accesspoint/${var.bucket_name}-ap/object/${var.prefix}*"
-    ]
-    principals {
-      type        = "AWS"
-      identifiers = local.effective_allowed_role_arns
-    }
-  }
-  statement {
-    sid     = "AllowListingPrefix"
-    effect  = "Allow"
-    actions = ["s3:ListBucket"]
-    resources = [
-      "arn:aws:s3:${var.aws_region}:${data.aws_caller_identity.current.account_id}:accesspoint/${var.bucket_name}-ap"
-    ]
-    principals {
-      type        = "AWS"
-      identifiers = local.effective_allowed_role_arns
-    }
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["${var.prefix}*"]
-    }
-  }
-  statement {
-    sid     = "AllowGetObject"
-    effect  = "Allow"
-    actions = ["s3:GetObject"]
-    resources = [
       "arn:aws:s3:${var.aws_region}:${data.aws_caller_identity.current.account_id}:accesspoint/${var.bucket_name}-ap/object/${var.prefix}*"
     ]
     principals {

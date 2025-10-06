@@ -49,10 +49,10 @@ data "aws_iam_policy_document" "assume_role_policy_doc" {
 resource "aws_s3_object" "test_file_foo" {
   bucket  = aws_s3_bucket.secure_bucket.id
   key     = "${var.prefix}test.txt"
-  content = "This is a test file in foo prefix - ${formatdate("YYYY-MM-DD", timestamp())}"
+  content = "This is a test file in s3accesslogs prefix - ${formatdate("YYYY-MM-DD", timestamp())}"
 
   tags = {
-    Description = "Test file in foo prefix for access validation"
+    Description = "Test file in s3accesslogs prefix for access validation"
   }
 }
 

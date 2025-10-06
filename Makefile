@@ -21,7 +21,6 @@ destroy: .terraform
 listap:
 	aws s3 ls --recursive s3://$(shell terraform output -raw secure_bucket_access_point_alias)/
 
-
 inspect-access:
 	aws s3api get-bucket-policy --bucket s3-check-role-2025 --query Policy --output text | jq .
 	aws s3control list-access-points --account-id $$(aws sts get-caller-identity --query Account --output text)

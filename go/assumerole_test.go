@@ -14,7 +14,7 @@ import (
 
 // test prefixes for objects
 var (
-	fooPrefix = "megalake/TANK/BLAH/foo/" // MUST have trailing slash!!
+	fooPrefix = "s3accesslogs/" // MUST have trailing slash!!
 	barPrefix = "bar/"
 )
 

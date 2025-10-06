@@ -10,13 +10,11 @@ variable "bucket_name" {
   default     = "s3-check-role-2025"
 }
 
-
 variable "prefix" {
   description = "Permitted prefix for S3 objects."
   type        = string
-  default     = "megalake/TANK/BLAH/foo/"
+  default     = "s3accesslogs/"
 }
-
 
 variable "aws_organization_id" {
   description = "The ID of your AWS Organization (e.g., o-xxxxxxxxxx)."
