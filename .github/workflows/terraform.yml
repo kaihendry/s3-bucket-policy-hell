@@ -36,6 +36,8 @@ jobs:
             aws-region: eu-west-2
             allowed-actors: '*'
       - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.4'
       - name: test
         working-directory: go
         run: go test ./...
